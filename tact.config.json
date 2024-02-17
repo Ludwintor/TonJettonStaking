@@ -1,0 +1,9 @@
+{
+    "projects": [
+        {
+            "name": "staking",
+            "path": "./src/staking/staking.tact",
+            "output": "./out"
+        }
+    ]
+}

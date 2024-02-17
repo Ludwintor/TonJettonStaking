@@ -1,0 +1,21 @@
+{
+  "scripts": {
+    "build": "rm -rf ./out && tact --config ./tact.config.json",
+    "deploy": "npx ts-node ./src/deploy.ts",
+    "test": "npx ts-node ./src/test.ts"
+  },
+  "dependencies": {
+    "@tact-lang/compiler": "^1.1.5",
+    "@tact-lang/emulator": "^4.2.3",
+    "@ton/core": "^0.54.0",
+    "@ton/crypto": "^3.2.0",
+    "@ton/ton": "^13.10.0",
+    "base64url": "^3.0.1",
+    "crc-32": "^1.2.2",
+    "dotenv": "^16.4.1",
+    "qs": "^6.11.2"
+  },
+  "devDependencies": {
+    "@types/qs": "^6.9.11"
+  }
+}
