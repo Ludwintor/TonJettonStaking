@@ -17,6 +17,7 @@ contract Staking with OwnableTransferable {
     const MIN_MINT_GAS: Int = ton("0.05");
     const MIN_UNSTAKE_GAS: Int = ton("0.1");
     const REVOKE_GAS: Int = ton("0.02");
+    const MIN_STAKE_AMOUNT: Int = 100 * pow(10, 9);
     const HUNDRED_PERCENT: Int = 10000000000; // 100.00000000%
     //const MAX_PERCENT: Int = 3000000000; // 30.00000000%
     const MAX_PERCENT: Int = 1000000000000; // 10000.00000000% (test)
@@ -28,7 +29,6 @@ contract Staking with OwnableTransferable {
     const MAX_LOCKUP: Int = 31536000; // 1 year
     const ONE_YEAR: Int = 31536000; // 1 year
 
-    inited: Bool;
     owner: Address;
     jetton_wallet: Address?;
     next_item_index: Int as uint64;
@@ -37,7 +37,6 @@ contract Staking with OwnableTransferable {
     content: Cell;
 
     init(owner: Address, content: Cell) {
-        self.inited = false;
         self.owner = owner;
         self.jetton_wallet = null;
         self.next_item_index = 0;
@@ -47,8 +46,7 @@ contract Staking with OwnableTransferable {
     }
 
     receive(msg: Deploy) {
-        require(!self.inited, "Already inited");
-        self.inited = true;
+        require(self.jetton_wallet == null, "Already initiated");
         self.jetton_wallet = msg.jetton_wallet;
     }
 
@@ -76,12 +74,11 @@ contract Staking with OwnableTransferable {
     //                 stake#18f2907e lockup_time:uint64 = InternalMsgBody
     // (if donate flag set, lock period can be omitted)
     receive(msg: JettonNotify) {
-        require(self.inited, "Not initiated");
         let ctx: Context = context();
         let msg_value: Int = ctx.value;
         let forward_payload: Slice = msg.forward_payload;
         if (ctx.sender != self.jetton_wallet || msg_value < self.MIN_MINT_GAS || 
-            forward_payload.empty() || forward_payload.loadUint(1) == 0) {
+            msg.amount < self.MIN_STAKE_AMOUNT || forward_payload.empty() || forward_payload.loadUint(1) == 0) {
             self.send_jettons(msg.query_id, msg.amount, msg.from, ctx.sender, 0, SendRemainingValue, null);
             self.exit_without_saving();
         }
@@ -150,7 +147,6 @@ contract Staking with OwnableTransferable {
 
     // owner requested unstake
     receive(msg: OwnershipProof) {
-        require(self.inited, "Not initiated");
         let ctx: Context = context();
         let sbt: Address = self.get_nft_address_by_index(msg.item_index);
         require(ctx.sender == sbt, "SBT from another collection");
@@ -252,6 +248,7 @@ contract Staking with OwnableTransferable {
             reward_supply: self.reward_supply,
             balance: self.balance,
             base_reward_supply: self.BASE_REWARD_SUPPLY,
+            min_stake: self.MIN_STAKE_AMOUNT,
             max_percent: self.MAX_PERCENT,
             min_percent: self.MIN_PERCENT,
             min_lockup: self.MIN_LOCKUP

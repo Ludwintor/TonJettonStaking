@@ -1,5 +1,5 @@
-const DONATE_OP: Int = 0xfeed0342;
-const STAKE_OP: Int = 0x57a3e82b;
+const DONATE_OP: Int = 0x6e872bd4;
+const STAKE_OP: Int = 0x18f2907e;
 
 message(0x1) Deploy {
     jetton_wallet: Address;

@@ -14,6 +14,7 @@ struct StakingInfo {
     reward_supply: Int as coins;
     balance: Int as coins;
     base_reward_supply: Int as coins;
+    min_stake: Int as coins;
     max_percent: Int as uint64;
     min_percent: Int as uint64;
     min_lockup: Int as uint64;
