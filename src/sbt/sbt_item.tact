@@ -107,7 +107,7 @@ contract SbtItem {
             to: self.owner!!, // not an authority cuz in staking contract revoke inited by owner
             value: 0,
             bounce: false,
-            mode: SendRemainingBalance + SendDestroyIfZero, // also destroy it 
+            mode: SendRemainingBalance + SendDestroyIfZero, // and destroy
             body: Excesses {
                 query_id: msg.query_id
             }.toCell()
@@ -180,7 +180,7 @@ contract SbtItem {
         return self.revoked_at;
     }
 
-    get fun get_stake_info(): StakeInfo? {
-        return self.stake_info;
+    get fun get_stake_info(): StakeInfo {
+        return self.stake_info!!;
     }
 }

@@ -17,23 +17,26 @@ contract Staking with OwnableTransferable {
     const MIN_MINT_GAS: Int = ton("0.05");
     const MIN_UNSTAKE_GAS: Int = ton("0.1");
     const REVOKE_GAS: Int = ton("0.02");
-    const MIN_STAKE_AMOUNT: Int = 100 * pow(10, 9);
+    const UNSTAKE_GAS: Int = ton("0.03");
+    const MIN_STAKE_AMOUNT: Int = 100 * pow(10, 5);
     const HUNDRED_PERCENT: Int = 10000000000; // 100.00000000%
     //const MAX_PERCENT: Int = 3000000000; // 30.00000000%
-    const MAX_PERCENT: Int = 1000000000000; // 10000.00000000% (test)
+    const MAX_PERCENT: Int = 10000000000; // 100.00000000% (test)
     const MIN_PERCENT: Int = 100000000; // 1.00000000%
     //const BASE_REWARD_SUPPLY: Int = 1000000 * pow(10, 5); // 1M jettons with decimal 5
-    const BASE_REWARD_SUPPLY: Int = 1000 * pow(10, 9); // 1k jettons with decimal 9 (test)
+    const BASE_REWARD_SUPPLY: Int = 100000 * pow(10, 5); // 100k jettons with decimal 5 (test)
     //const MIN_LOCKUP: Int = 604800; // 7 days
     const MIN_LOCKUP: Int = 60; // 1 minute (test)
     const MAX_LOCKUP: Int = 31536000; // 1 year
     const ONE_YEAR: Int = 31536000; // 1 year
+    const DEV_FEE: Int = 100000000; // 1.00000000%
 
     owner: Address;
     jetton_wallet: Address?;
     next_item_index: Int as uint64;
     reward_supply: Int as coins;
     balance: Int as coins;
+    dev_fee_balance: Int as coins;
     content: Cell;
 
     init(owner: Address, content: Cell) {
@@ -42,6 +45,7 @@ contract Staking with OwnableTransferable {
         self.next_item_index = 0;
         self.reward_supply = 0;
         self.balance = 0;
+        self.dev_fee_balance = 0;
         self.content = content;
     }
 
@@ -69,16 +73,22 @@ contract Staking with OwnableTransferable {
         self.exit_without_saving();
     }
 
+    receive(msg: TakeDevFee) {
+        self.requireOwner();
+        self.send_jettons(msg.query_id, self.dev_fee_balance, sender(), self.jetton_wallet!!, 0, SendRemainingValue, null);
+        self.dev_fee_balance = 0;
+    }
+
     // accept jettons for staking. 
-    // forward_payload donate#6e872bd4 = InternalMsgBody
-    //                 stake#18f2907e lockup_time:uint64 = InternalMsgBody
+    // forward_payload donate#6e872bd4
+    //                 stake#18f2907e lockup_time:uint64
     // (if donate flag set, lock period can be omitted)
     receive(msg: JettonNotify) {
         let ctx: Context = context();
         let msg_value: Int = ctx.value;
         let forward_payload: Slice = msg.forward_payload;
         if (ctx.sender != self.jetton_wallet || msg_value < self.MIN_MINT_GAS || 
-            msg.amount < self.MIN_STAKE_AMOUNT || forward_payload.empty() || forward_payload.loadUint(1) == 0) {
+            forward_payload.empty() || forward_payload.loadUint(1) == 0) {
             self.send_jettons(msg.query_id, msg.amount, msg.from, ctx.sender, 0, SendRemainingValue, null);
             self.exit_without_saving();
         }
@@ -103,7 +113,7 @@ contract Staking with OwnableTransferable {
             return;
         }
 
-        if (op != STAKE_OP || payload.bits() < 64) { // if unknown op or no lockup period specified
+        if (op != STAKE_OP || payload.bits() < 64 || msg.amount < self.MIN_STAKE_AMOUNT ) {
             self.send_jettons(msg.query_id, msg.amount, msg.from, ctx.sender, 0, SendRemainingValue, null);
             self.exit_without_saving();
         }
@@ -122,15 +132,17 @@ contract Staking with OwnableTransferable {
         let reward_factor: Int = reward_percent * lockup_time / self.ONE_YEAR;
         let reward: Int = msg.amount * reward_factor / self.HUNDRED_PERCENT;
         reward = min(reward, self.reward_supply);
+        let dev_fee: Int = reward * self.DEV_FEE / self.HUNDRED_PERCENT;
         self.reward_supply = self.reward_supply - reward;
         self.balance = self.balance + msg.amount;
+        self.dev_fee_balance = self.dev_fee_balance + dev_fee;
 
         let now_time: Int = now();
         let stake_info: StakeInfo = StakeInfo {
             lock_time: now_time,
             unlock_time: now_time + lockup_time,
             body: msg.amount,
-            redeem: msg.amount + reward
+            redeem: msg.amount + reward - dev_fee
         };
         let content: StringBuilder = beginString();
         content.append(self.next_item_index.toString());
@@ -158,15 +170,15 @@ contract Staking with OwnableTransferable {
         require(now() >= unlock_time, "Lockup period is not over");
         content.loadCoins(); // skip body
         let redeem: Int = content.loadCoins(); // redeem
-        let msg_value: Int = ctx.value - self.REVOKE_GAS;
         send(SendParameters{
             to: sbt,
             value: self.REVOKE_GAS,
-            mode: 0,
+            mode: SendPayGasSeparately,
             body: Revoke {
                 query_id: msg.query_id
             }.toCell()
         });
+        let msg_value: Int = ctx.value - self.UNSTAKE_GAS - self.REVOKE_GAS - ctx.readForwardFee();
         self.send_jettons(msg.query_id, redeem, msg.owner, self.jetton_wallet!!, msg_value, 0, "Unstake".asComment());
         self.balance = self.balance - redeem;
     }
@@ -251,6 +263,7 @@ contract Staking with OwnableTransferable {
             min_stake: self.MIN_STAKE_AMOUNT,
             max_percent: self.MAX_PERCENT,
             min_percent: self.MIN_PERCENT,
+            max_lockup: self.MAX_LOCKUP,
             min_lockup: self.MIN_LOCKUP
         };
     }

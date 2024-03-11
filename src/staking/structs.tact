@@ -17,5 +17,6 @@ struct StakingInfo {
     min_stake: Int as coins;
     max_percent: Int as uint64;
     min_percent: Int as uint64;
+    max_lockup: Int as uint64;
     min_lockup: Int as uint64;
 }

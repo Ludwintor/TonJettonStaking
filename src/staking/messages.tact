@@ -5,6 +5,10 @@ message(0x1) Deploy {
     jetton_wallet: Address;
 }
 
+message(0x2) TakeDevFee {
+    query_id: Int as uint64;
+}
+
 message(0x3) ChangeContent {
     new_content: Cell;
 }
